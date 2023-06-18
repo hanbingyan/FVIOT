@@ -1,0 +1,7 @@
+
+.DS_Store
+*.pyc
+*.xml
+*.iml
+*.pickle
+*.pdf
