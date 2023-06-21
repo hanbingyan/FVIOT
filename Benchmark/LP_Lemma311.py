@@ -5,7 +5,7 @@ from time import time
 
 np.random.seed(12345)
 
-N_INSTANCE = 1
+N_INSTANCE = 10
 T = 2 # number of non-trivial time-steps (time 0 starting at 0 is not included)
 N_BRANCH = 2
 x_vol = 1.0

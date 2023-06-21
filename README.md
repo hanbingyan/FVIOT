@@ -40,3 +40,19 @@ to the time horizon under consideration.
 * `AdaptedSinkhorn.py` gives results in Table 2 for adapted Sinkhorn methods. Entropic regularization 
 parameter `EPS` should be modified accordingly as in Table 2.
 
+## Reproduciblity
+
+Although we have set the random seeds, there are still some sources of nondeterministic behaviors:
+
+* `Kmeans` in `scikit-learn` could be updated occasionally. It may make the code faster or slower.
+We use the version of 1.2.2. However, one may want to specify
+```
+import os
+os.environ["OMP_NUM_THREADS"] = '2'
+```
+and `n_init = 10` to control these variables explicitly and some user/future warnings from `sklearn`.
+
+* PyTorch may have nondeterministic behavior for a specific platform, device, and release, see 
+[here](https://pytorch.org/docs/stable/notes/randomness.html#reproducibility).
+
+We believe these will not change the main observations in the paper.

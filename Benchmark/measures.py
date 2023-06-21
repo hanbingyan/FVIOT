@@ -1,9 +1,10 @@
 import numpy as np
 from time import time
-from scipy.stats import norm
+
+# For Windows users to solve the memory leak warning from Kmeans due to MKL
+import os
+os.environ["OMP_NUM_THREADS"] = '2'
 from sklearn.cluster import KMeans
-
-
 
 
 # FUNCTIONS TO RESHAPE MEASURES FOR CAUSAL AND BICAUSAL VERSION OF SINKHORN'S ALGORITHM
@@ -323,29 +324,21 @@ def rand_tree_binom(T, init, vol, N_leaf=2, in_size=100):
         if t == 0:
             supports[0] = {init}
             rand_supps = np.random.randn(N_leaf*in_size, 1)*vol
-            kmeans = KMeans(n_clusters=N_leaf).fit(rand_supps)
+            kmeans = KMeans(n_clusters=N_leaf, n_init=10).fit(rand_supps)
             _, probs = np.unique(kmeans.labels_, return_counts=True)
-            # probs = np.ones(N_leaf)
             probs = probs/np.sum(probs)
             supps = kmeans.cluster_centers_
-            # supps = np.random.random(size=[N_leaf, 1])
-            # supps = supps.reshape((-1, 1))
             supps_int = set(np.squeeze(init+supps, axis=1))
-            # supps_int = set(supps)
             supports[1] |= supps_int
             transitions[(t + 1, init)] = [init+supps, probs]
         else:
             for x_int in supports[t]:
                 rand_supps = np.random.randn(N_leaf*in_size, 1)*vol
-                kmeans = KMeans(n_clusters=N_leaf).fit(rand_supps)
+                kmeans = KMeans(n_clusters=N_leaf, n_init=10).fit(rand_supps)
                 _, probs = np.unique(kmeans.labels_, return_counts=True)
                 # probs = np.ones(N_leaf)
                 probs = probs / np.sum(probs)
                 supps = kmeans.cluster_centers_
-                # probs = np.ones(N_leaf)
-                # probs = probs/np.sum(probs)
-                # supps = np.random.random(size=[N_leaf, 1])
-                # supps = supps.reshape((-1, 1))
                 supps_int = set(np.squeeze(x_int+supps, axis=1))
                 # supps_int = set(x_int + supps)
                 supports[t + 1] |= supps_int
@@ -370,202 +363,61 @@ def rand_tree_binom(T, init, vol, N_leaf=2, in_size=100):
 
 
 
+def comb_tree(data, T, init, klist):
 
-# def tree_approx(T, init, vol, n_grid=50):
-#     # Trying to implement the method in Chapter 5 from https://arxiv.org/pdf/2102.05413.pdf
-#
-#     transitions = {}  # take as key a tuple of an (integer node and integer value) and returns a measure
-#     supports = {}  # takes as input a node and returns a set of integer support points
-#     candidate_arr = []
-#     for i in range(T+1):
-#         candidate = np.arange(i*n_grid+1)
-#         candidate = candidate - candidate.mean() + init
-#         candidate = candidate.astype(int)
-#         candidate_arr.append(candidate)
-#         supports[i] = set([])
-#
-#     for t in range(T):
-#         if t == 0:
-#             supports[0] = {init}
-#             probs = np.zeros_like(candidate_arr[t+1], dtype=float)
-#             for k in range(len(probs)):
-#                 probs[k] = norm.cdf(candidate_arr[t+1][k]+0.5, loc=init, scale=vol) - \
-#                            norm.cdf(candidate_arr[t+1][k]-0.5, loc=init, scale=vol)
-#             nonzero_prob = probs > 1e-5
-#             supps = candidate_arr[t+1][nonzero_prob]
-#             supps_int = set(supps)
-#             probs = probs[nonzero_prob]
-#             probs = probs/probs.sum()
-#             supports[1] |= supps_int
-#             transitions[(t + 1, init)] = [supps, probs]
-#         else:
-#             for x_int in supports[t]:
-#                 probs = np.zeros_like(candidate_arr[t+1], dtype=float)
-#                 for k in range(len(probs)):
-#                     probs[k] = norm.cdf(candidate_arr[t+1][k] + 0.5, loc=x_int, scale=vol) - \
-#                                norm.cdf(candidate_arr[t+1][k] - 0.5, loc=x_int, scale=vol)
-#                 nonzero_prob = probs > 1e-5
-#                 supps = candidate_arr[t+1][nonzero_prob]
-#                 supps_int = set(supps)
-#                 probs = probs[nonzero_prob]
-#                 probs = probs/probs.sum()
-#                 supports[t+1] |= supps_int
-#                 transitions[(t+1, x_int)] = [supps, probs]
-#
-#     def mu(node, x_parents):
-#         if node == 0:
-#             return [np.reshape(np.array([init]), (-1, 1)), [1]]
-#         x = x_parents[0]  # should only contain one element as the structure is Markovian
-#         # x = int(x)
-#         return transitions[(node, x)]
-#
-#     def sup_mu(node_list):
-#         if len(node_list) == 0:
-#             out = np.array([])
-#             out = out.reshape(-1, 1)
-#             return out
-#         return np.reshape(np.array(list(supports[node_list[0]])), (-1, 1))  # we only supply support for single nodes
-#
-#     print('Warning: You are using a measure where only one-step supports are specified')
-#     return mu, sup_mu
-#
-#
-# def adapted_tree(T, init, vol, grid_size=0.1, n_grid=51, in_size=2):
-#     # Trying to implement the method in Chapter 5 from https://arxiv.org/pdf/2102.05413.pdf
-#
-#     transitions = {}  # take as key a tuple of an (integer node and integer value) and returns a measure
-#     supports = {}  # takes as input a node and returns a set of integer support points
-#     candidate_arr = []
-#     for i in range(T+1):
-#         candidate = np.arange(i*n_grid+1)*grid_size
-#         candidate = candidate - candidate.mean() + init
-#         candidate_arr.append(candidate)
-#         supports[i] = set([])
-#
-#     # sample data
-#     data = np.zeros((1000, T+1))
-#     data[:, 0] = init
-#     for idx in range(1000):
-#         for t in range(T):
-#             data[idx, t+1] = data[idx, t] + vol*np.random.randn(1)
-#
-#     for t in range(T):
-#         if t == 0:
-#             supports[0] = {init}
-#             rand_supps = data[:, t+1]
-#             labels = np.zeros_like(rand_supps, dtype=np.int)
-#             for k in range(len(rand_supps)):
-#                 labels[k] = np.argmin(np.abs(candidate_arr[t+1] - rand_supps[k]))
-#             uni_labels, probs = np.unique(labels, return_counts=True)
-#             probs = probs/probs.sum()
-#             supps = candidate_arr[t+1][uni_labels]
-#             supps_int = set(supps)
-#             supports[1] |= supps_int
-#             transitions[(t + 1, init)] = [supps, probs]
-#         else:
-#             for x_int in supports[t]:
-#                 # find where data == x_int at time t
-#                 cond_idx = []
-#                 for k in range(1000):
-#                     min_val = candidate_arr[t][np.argmin(np.abs(data[k, t] - candidate_arr[t]))]
-#                     if np.abs(min_val - x_int) < grid_size/10:
-#                         cond_idx.append(k)
-#                 cond_idx = np.array(cond_idx, dtype=int)
-#                 rand_supps = data[cond_idx, t+1]
-#                 labels = np.zeros_like(rand_supps, dtype=np.int)
-#                 for k in range(len(rand_supps)):
-#                     labels[k] = np.argmin(np.abs(candidate_arr[t+1] - rand_supps[k]))
-#                 uni_labels, probs = np.unique(labels, return_counts=True)
-#                 probs = probs/probs.sum()
-#                 supps = candidate_arr[t+1][uni_labels]
-#                 supps_int = set(supps)
-#                 supports[t+1] |= supps_int
-#                 transitions[(t+1, x_int)] = [supps, probs]
-#
-#     def mu(node, x_parents):
-#         if node == 0:
-#             return [np.reshape(np.array([init]), (-1, 1)), [1]]
-#         x = x_parents[0]  # should only contain one element as the structure is Markovian
-#         # x = int(x)
-#         return transitions[(node, x)]
-#
-#     def sup_mu(node_list):
-#         if len(node_list) == 0:
-#             out = np.array([])
-#             out = out.reshape(-1, 1)
-#             return out
-#         return np.reshape(np.array(list(supports[node_list[0]])), (-1, 1))  # we only supply support for single nodes
-#
-#     print('Warning: You are using a measure where only one-step supports are specified')
-#     return mu, sup_mu
-#
-#
-# def rand_tree_pichler(T, num_branch=(2, 3, 2, 3, 4), init=10, udrange=10, discr=0):
-#     # Trying to implement the method in Chapter 5 from https://arxiv.org/pdf/2102.05413.pdf
-#
-#     transitions = {}  # take as key a tuple of an (integer node and integer value) and returns a measure
-#     supports = {}  # takes as input a node and returns a set of integer support points
-#     for i in range(T+1):
-#         supports[i] = set([])
-#
-#     for t in range(T):
-#         if t == 0:
-#             if discr==0:
-#                 supports[0] = {init}
-#             else:
-#                 supports[0] = {0}
-#             nbh = num_branch[0]
-#             probs = np.random.random_sample(nbh)
-#             probs = probs/np.sum(probs)
-#             if not discr:
-#                 supps = np.random.randint(-udrange, udrange, size=[nbh, 1])
-#                 supps_int = set(np.squeeze(10+supps, axis=1))
-#                 supports[1] |= supps_int
-#                 transitions[(t + 1, init)] = [10 + supps, probs]
-#             else:
-#                 supps = np.arange(0, nbh)
-#                 supps = supps.reshape(-1, 1)
-#                 supps_int = set(np.squeeze(supps, axis=1))
-#                 supports[1] |= supps_int
-#                 transitions[(t + 1, 0)] = [supps, probs]
-#         else:
-#             for x_int in supports[t]:
-#                 nbh = num_branch[t]
-#                 probs = np.random.random_sample(nbh)
-#                 probs = probs/np.sum(probs)
-#                 if not discr:
-#                     supps = np.random.randint(-udrange, udrange, size=[nbh, 1])
-#                     supps_int = set(np.squeeze(x_int+supps, axis=1))
-#                     supports[t + 1] |= supps_int
-#                     transitions[(t + 1, x_int)] = [x_int + supps, probs]
-#                 else:
-#                     supps = np.arange(0, nbh)
-#                     supps = supps.reshape(-1, 1)
-#                     supps_int = set(np.squeeze(supps, axis=1))
-#                     supports[t+1] |= supps_int
-#                     transitions[(t+1, x_int)] = [supps, probs]
-#
-#     if discr == 0:
-#         def mu(node, x_parents):
-#             if node == 0:
-#                 return [np.reshape(np.array([10]), (-1, 1)), [1]]
-#             x = x_parents[0]  # should only contain one element as the structure is Markovian
-#             x = int(x)
-#             return transitions[(node, x)]
-#     else:
-#         def mu(node, x_parents):
-#             if node == 0:
-#                 return [np.reshape(np.array([0]), (-1, 1)), [1]]
-#             x = x_parents[0]  # should only contain one element as the structure is Markovian
-#             x = int(x)
-#             return transitions[(node, x)]
-#
-#     def sup_mu(node_list):
-#         if len(node_list) == 0:
-#             out = np.array([])
-#             out = out.reshape(-1, 1)
-#             return out
-#         return np.reshape(np.array(list(supports[node_list[0]])), (-1, 1))  # we only supply support for single nodes
-#
-#     print('Warning: You are using a measure where only one-step supports are specified')
-#     return mu, sup_mu
+    transitions = {}  # take as key a tuple of an (integer node and integer value) and returns a measure
+    supports = {}  # takes as input a node and returns a set of integer support points
+    for i in range(T+1):
+        supports[i] = set([])
+
+    label_list = []
+    support_list = []
+
+    for t in range(T+1):
+        # print('t = ' + str(t))
+        data_t = data[:, t:t+1]
+        kmx = KMeans(n_clusters=klist[t], n_init=10).fit(data_t)
+        cx = kmx.cluster_centers_
+        cx = np.round(cx, decimals=6)
+        lx = kmx.labels_
+        label_list.append(lx)
+        support_list.append(cx)
+
+    supports[0] = {init}
+    for t in range(T):
+        # if t == 0:
+        #     supports[0] = {init}
+        #     supps = support_list[1]
+        #     _, probs = np.unique(label_list[0], return_counts=True)
+        #     probs = probs/np.sum(probs)
+        #     supps_int = set(np.squeeze(supps, axis=1))
+        #     supports[1] |= supps_int
+        #     transitions[(t+1, init)] = [supps, probs]
+        # else:
+        uniq_label = np.unique(label_list[t])
+        for label_int in uniq_label:
+            x_int = support_list[t][label_int][0]
+            supps_labels, probs = np.unique(label_list[t+1][label_list[t] == label_int], return_counts=True)
+            probs = probs/np.sum(probs)
+            supps = support_list[t+1][supps_labels]
+            # supps = set(np.squeeze(supps, axis=1))
+            transitions[(t+1, x_int)] = [supps, probs]
+        supports[t+1] = set(np.squeeze(support_list[t+1], axis=1))
+
+    def mu(node, x_parents):
+        if node == 0:
+            return [np.reshape(np.array([init]), (-1, 1)), [1]]
+        x = x_parents[0]  # should only contain one element as the structure is Markovian
+        # x = int(x)
+        return transitions[(node, x)]
+
+    def sup_mu(node_list):
+        if len(node_list) == 0:
+            out = np.array([])
+            out = out.reshape(-1, 1)
+            return out
+        return np.reshape(np.array(list(supports[node_list[0]])), (-1, 1))  # we only supply support for single nodes
+
+    print('Warning: You are using a measure where only one-step supports are specified')
+    return mu, sup_mu
+

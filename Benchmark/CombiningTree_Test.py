@@ -1,20 +1,27 @@
+### Testing adapted Sinkhorn with recombining tree. It will run out of memory in my laptop
+### due to the code get_meas_for_sinkhorn and afterwards. Thus, not reported in the paper.
+
 import numpy as np
 from measures import get_meas_for_sinkhorn, get_full_index_markov, get_start_next_indices, \
-    get_joint_prob, sinkhorn_bicausal_markov, rand_tree_binom #, rand_tree_pichler, tree_approx, adapted_tree
+    get_joint_prob, sinkhorn_bicausal_markov, rand_tree_binom, comb_tree #, rand_tree_pichler, tree_approx, adapted_tree
 from time import time
+from Kmeans_utils import brownian_motion_sample
+
+
 
 np.random.seed(12345)
 # Program produces values for Table 2 in the paper Eckstein & Pammer "Computational methods ..."
 # Values for the table can be obtained directly from the console output
 
-N_INSTANCE = 10
-T = 6 # number of non-trivial time-steps (time 0 starting at 0 is not included)
-N_BRANCH = 2
-EPS = 0.2
+N_INSTANCE = 1
+T = 41 # number of non-trivial time-steps (time 0 starting at 0 is not included)
+# N_BRANCH = 2
+EPS = 1.0
 x_vol = 1.0
 y_vol = 0.5
 x_init = 1.0
 y_init = 2.0
+N_SAMPLE = 10000
 
 def cost_f_scalar_2(x, y):
     return np.abs(x-y)**2
@@ -26,17 +33,17 @@ t0 = time()
 for n_ins in range(N_INSTANCE):
     print('Instance:', n_ins)
 
-    # mu, supp_mu = rand_tree_pichler(T, num_branch=tuple([N_BRANCH] * T), udrange=UDRANGE)
-    # nu, supp_nu = rand_tree_pichler(T, num_branch=tuple([N_BRANCH] * T), udrange=UDRANGE)
+    partition_list = np.zeros(T+1, dtype=int) # [1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2]
+    partition_list[0] = 1
+    partition_list[1:11] = 2
+    partition_list[11:] = 2
+    # mu, supp_mu = rand_tree_binom(T, init=x_init, vol=x_vol, N_leaf=N_BRANCH, in_size=200)
+    # nu, supp_nu = rand_tree_binom(T, init=y_init, vol=y_vol, N_leaf=N_BRANCH, in_size=200)
+    bms = brownian_motion_sample(T, N_SAMPLE, vol=x_vol) + x_init
+    mu, supp_mu = comb_tree(bms, T, init=x_init, klist=partition_list)
 
-    mu, supp_mu = rand_tree_binom(T, init=x_init, vol=x_vol, N_leaf=N_BRANCH, in_size=200)
-    nu, supp_nu = rand_tree_binom(T, init=y_init, vol=y_vol, N_leaf=N_BRANCH, in_size=200)
-
-    # mu, supp_mu = tree_approx(T, init=x_init, vol=x_vol, n_grid=10)
-    # nu, supp_nu = tree_approx(T, init=y_init, vol=y_vol, n_grid=10)
-
-    # mu, supp_mu = adapted_tree(T, init=x_init, vol=x_vol, grid_size=0.1, n_grid=41, in_size=30)
-    # nu, supp_nu = adapted_tree(T, init=y_init, vol=y_vol, grid_size=0.1, n_grid=41, in_size=30)
+    bms_nu = brownian_motion_sample(T, N_SAMPLE, vol=y_vol) + y_init
+    nu, supp_nu = comb_tree(bms_nu, T, init=y_init, klist=partition_list)
 
     # Sinkhorn
     x_list, mu_list = get_meas_for_sinkhorn(mu, supp_mu, T + 1)

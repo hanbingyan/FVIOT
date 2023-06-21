@@ -11,13 +11,13 @@ start = Clock.time()
 # with parameter constraint
 Trunc_flag = True
 # No. of gradient descent steps (G)
-N_OPT = 50
+N_OPT = 20
 # No. of sample paths (N)
 smp_size = 2000
 # Sample size for empirical OT (B)
 in_sample_size = 50
 
-time_horizon = 4
+time_horizon = 8
 x_dim = 1
 y_dim = 1
 x_vol = 1.0

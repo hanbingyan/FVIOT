@@ -62,7 +62,7 @@ def empirical_k_means_measure(data, use_klist=0, klist=(), tol_decimals=6, use_w
         for t in range(T_h):
             # print('t = ' + str(t))
             data_t = data[:, t:t+1]
-            kmx = KMeans(n_clusters=klist[t]).fit(data_t)
+            kmx = KMeans(n_clusters=klist[t], n_init=10).fit(data_t)
             cx = kmx.cluster_centers_
             cx = np.round(cx, decimals=tol_decimals)
             lx = kmx.labels_
